@@ -9,7 +9,7 @@ const shared = require('../shared');
 const errorHandler = require('@tryghost/mw-error-handler');
 const sentry = require('../../../shared/sentry');
 const redirectAdminUrls = require('./middleware/redirect-admin-urls');
-const createServeAuthFrameFileMw = require('./middleware/serve-auth-frame-file');
+const {createPublicFileMiddleware} = require('../../../frontend/web/middleware/serve-public-file');
 
 /**
  *
@@ -44,7 +44,27 @@ module.exports = function setupAdminApp() {
         // otherwise return a 204 to avoid JS and API requests being made unnecessarily
         try {
             if (req.headers.cookie?.includes('ghost-admin-api-session')) {
-                next();
+                const filename = path.parse(req.path).base;
+                let filePath = 'admin-auth';
+                
+                if (filename === '') {
+                    filePath = path.join(filePath, 'index.html');
+                } else {
+                    filePath = path.join(filePath, filename);
+                }
+                
+                // Create and use the public file middleware directly
+                const publicFileMiddleware = createPublicFileMiddleware('static', filePath, 
+                    filename.endsWith('.js') ? 'application/javascript' : 'text/html',
+                    filename.endsWith('.js') ? constants.ONE_YEAR_MS : 0,
+                    {
+                        replacements: {
+                            '{{SITE_ORIGIN}}': new URL(urlUtils.getSiteUrl()).origin
+                        }
+                    }
+                );
+                
+                return publicFileMiddleware(req, res, next);
             } else {
                 res.setHeader('Cache-Control', 'public, max-age=0');
                 res.sendStatus(204);
@@ -52,7 +72,7 @@ module.exports = function setupAdminApp() {
         } catch (err) {
             next(err);
         }
-    }, createServeAuthFrameFileMw(config, urlUtils));
+    });
 
     // Ember CLI's live-reload script
     if (config.get('env') === 'development') {

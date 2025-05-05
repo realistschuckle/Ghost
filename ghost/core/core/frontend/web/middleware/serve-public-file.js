@@ -80,6 +80,13 @@ function createPublicFileMiddleware(location, file, mime, maxAge, options = {}) 
 
             if (mime === 'text/xsl' || mime === 'text/plain' || mime === 'application/javascript') {
                 str = str.replace(blogRegex, urlUtils.urlFor('home', true).replace(/\/$/, ''));
+                
+                // Apply custom replacements if provided
+                if (options.replacements) {
+                    for (const [key, value] of Object.entries(options.replacements)) {
+                        str = str.replace(new RegExp(key, 'g'), value);
+                    }
+                }
             }
 
             cache = {
